@@ -1,6 +1,6 @@
-export default class MainMenuScene extends Phaser.Scene {
+export default class CombatScene extends Phaser.Scene {
     constructor() {
-        super({ key: 'MainMenuScene' });
+        super({ key: 'CombatScene' });
     }
 
     preload() {
@@ -22,13 +22,9 @@ export default class MainMenuScene extends Phaser.Scene {
             button.on('pointerdown', callback);
         };
 
-        createButton(this.cameras.main.centerX, 60, 'Play Game', () => {
-            console.log("play game");
+        createButton(this.cameras.main.centerX, 120, 'Combat done', () => {
+            console.log("Combat done!");
             this.scene.start('OptionScene');
         });
-        createButton(this.cameras.main.centerX, 120, 'Instructions', () => {
-            console.log("instructions");
-        });
-
     }
 }
