@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import MainScene from './scenes/MainScene';
+import MainMenuScene from './scenes/MainMenuScene';
 
 const config = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  scene: [MainScene]
+  width: 480,
+  height: 270,
+  scene: [MainMenuScene]
 };
 
 new Phaser.Game(config);
