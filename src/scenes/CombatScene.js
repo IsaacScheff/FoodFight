@@ -55,7 +55,7 @@ export default class CombatScene extends Phaser.Scene {
         gameState.party.forEach((member, index) => {
             const x = 50; // Fixed x position for all images
             const y = 30 + index * 60; // y position spaced by 60 pixels
-            this.add.image(x, y, member.name);
+            member.imageObject = this.add.image(x, y, member.name);
         });
     }
 
@@ -122,6 +122,7 @@ export default class CombatScene extends Phaser.Scene {
         const damage = Math.floor(Math.random() * 20) + 5; // Random damage between 5 and 25
         target.health -= damage;
         this.printResult(`${target.name} took ${damage} damage. Remaining health: ${target.health}`);
+        this.showDamage(target, damage);
 
         if (target.health <= 0) {
             this.printResult(`${target.name} is defeated!`);
@@ -132,6 +133,28 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     printResult(message) {
-        this.resultText.setText(message); // Set the new message, replacing the old one
+        this.resultText.setText(message); 
+    }
+
+    showDamage(target, damage) {
+        const x = target.imageObject ? target.imageObject.x : this.enemyImage.x;
+        const y = target.imageObject ? target.imageObject.y : this.enemyImage.y;
+
+        const damageText = this.add.text(x, y - 30, `-${damage}`, {
+            fontSize: '20px',
+            fill: '#ff0000',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: damageText,
+            y: y - 60,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+                damageText.destroy();
+            }
+        });
     }
 }
