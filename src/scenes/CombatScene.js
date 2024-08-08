@@ -5,12 +5,13 @@ export default class CombatScene extends Phaser.Scene {
         super({ key: 'CombatScene' });
         this.selectedCharacter = null;
         this.enemy = {
-            name: 'Enemy',
-            image: 'enemy.png',
-            health: 100,
+            name: 'Apple',
+            image: 'apple.png',
+            health: 1000,
             speed: 5,
             attacks: ['Bite', 'Scratch', 'Roar']
         };
+        this.combatEnded = false;
     }
 
     preload() {
@@ -45,7 +46,7 @@ export default class CombatScene extends Phaser.Scene {
         this.displayPartyMembers();
 
         // Display enemy on the right side
-        this.enemyImage = this.add.image(width - 50, height / 2, this.enemy.name);
+        this.enemy.imageObject = this.add.image(width - 50, height / 2, this.enemy.name);
 
         // Start the combat loop
         this.startCombat();
@@ -72,6 +73,10 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     nextTurn() {
+        if (this.combatEnded) {
+            return;
+        }
+
         if (this.turnIndex >= this.combatants.length) {
             // Reset turn index if we've gone through all combatants
             this.turnIndex = 0;
@@ -107,18 +112,24 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     enemyAction(enemy) {
+        const target = Phaser.Utils.Array.GetRandom(gameState.party.filter(member => member.health > 0));
         const attack = Phaser.Utils.Array.GetRandom(enemy.attacks);
-        const target = Phaser.Utils.Array.GetRandom(gameState.party);
-        this.printResult(`${enemy.name} performs ${attack} on ${target.name}`);
-        this.performAttack(enemy, attack, target);
+        if (target) {
+            this.printResult(`${enemy.name} performs ${attack} on ${target.name}`);
+            this.performAttack(enemy, attack, target);
 
-        this.time.delayedCall(1000, () => {
-            this.turnIndex++;
-            this.nextTurn();
-        });
+            this.time.delayedCall(1000, () => {
+                this.turnIndex++;
+                this.nextTurn();
+            });
+        }
     }
 
     performAttack(attacker, attackType, target) {
+        if (this.combatEnded) {
+            return;
+        }
+
         const damage = Math.floor(Math.random() * 20) + 5; // Random damage between 5 and 25
         target.health -= damage;
         this.printResult(`${target.name} took ${damage} damage. Remaining health: ${target.health}`);
@@ -126,19 +137,42 @@ export default class CombatScene extends Phaser.Scene {
 
         if (target.health <= 0) {
             this.printResult(`${target.name} is defeated!`);
+            if (target.imageObject) {
+                target.imageObject.setVisible(false);
+            }
+
+            // Check for combat end conditions
             if (target === this.enemy) {
-                this.enemyImage.setVisible(false);
+                this.enemyDefeated();
+            } else if (gameState.party.every(member => member.health <= 0)) {
+                this.allPartyMembersDefeated();
             }
         }
     }
 
+    enemyDefeated() {
+        this.printResult('Combat won!');
+        this.combatEnded = true;
+        this.time.delayedCall(2000, () => {
+            // Additional logic for combat win, e.g., returning to main menu or starting next encounter
+        });
+    }
+
+    allPartyMembersDefeated() {
+        this.printResult('All party members are defeated!');
+        this.combatEnded = true;
+        this.time.delayedCall(2000, () => {
+            // Additional logic for party defeat, e.g., game over screen or restarting the game
+        });
+    }
+
     printResult(message) {
-        this.resultText.setText(message); 
+        this.resultText.setText(message); // Set the new message, replacing the old one
     }
 
     showDamage(target, damage) {
-        const x = target.imageObject ? target.imageObject.x : this.enemyImage.x;
-        const y = target.imageObject ? target.imageObject.y : this.enemyImage.y;
+        const x = target.imageObject ? target.imageObject.x : this.enemy.imageObject.x;
+        const y = target.imageObject ? target.imageObject.y : this.enemy.imageObject.y;
 
         const damageText = this.add.text(x, y - 30, `-${damage}`, {
             fontSize: '20px',
