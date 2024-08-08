@@ -1,14 +1,23 @@
 import { gameState } from '../gameState.js';
+
 export default class CombatScene extends Phaser.Scene {
     constructor() {
         super({ key: 'CombatScene' });
         this.selectedCharacter = null;
+        this.enemy = {
+            name: 'Enemy',
+            image: 'enemy.png',
+            health: 100,
+            speed: 5,
+            attacks: ['Bite', 'Scratch', 'Roar']
+        };
     }
 
     preload() {
         gameState.party.forEach(member => {
             this.load.image(member.name, 'assets/images/' + member.image);
         });
+        this.load.image(this.enemy.name, 'assets/images/' + this.enemy.image);
     }
 
     create() {
@@ -25,169 +34,104 @@ export default class CombatScene extends Phaser.Scene {
         this.menuBox.fillStyle(0xf5f5f5, 1); // Off-white color
         this.menuBox.fillRect(0, boxY, width, boxHeight);
 
+        // Text area for combat results
+        this.resultText = this.add.text(10, boxY + 10, '', {
+            fontSize: '16px',
+            fill: '#000',
+            wordWrap: { width: width - 20 }
+        });
+
         // Display party member images on the left side
         this.displayPartyMembers();
 
-        // Create main menu buttons
-        this.mainMenuButtons = [
-            this.createButton(width / 8, boxY + 35, 'Attack', () => this.showAttackOptions()),
-            this.createButton(3 * width / 8, boxY + 35, 'Items', () => this.showItemOptions()),
-            this.createButton(5 * width / 8, boxY + 35, 'Option 3', () => this.showOption3()),
-            this.createButton(7 * width / 8, boxY + 35, 'Option 4', () => this.showOption4())
-        ];
+        // Display enemy on the right side
+        this.enemyImage = this.add.image(width - 50, height / 2, this.enemy.name);
 
-        // Group for sub-options
-        this.subOptionsGroup = this.add.group();
-
-        // Initially hide sub-options
-        this.subOptionsGroup.setVisible(false);
-
-        // Create cancel button and hide it initially
-        this.cancelButton = this.createCancelButton(30, boxY + 35, 'Cancel', () => this.showMainMenu());
-        this.cancelButton.button.setVisible(false);
-        this.cancelButton.text.setVisible(false);
+        // Start the combat loop
+        this.startCombat();
     }
 
     displayPartyMembers() {
         gameState.party.forEach((member, index) => {
             const x = 50; // Fixed x position for all images
-            const y = 30 + index * 60; // y position spaced by 100 pixels
-            const characterImage = this.add.image(x, y, member.name).setInteractive();
-
-            characterImage.on('pointerdown', () => {
-                this.selectCharacter(member);
-            });
+            const y = 30 + index * 60; // y position spaced by 60 pixels
+            this.add.image(x, y, member.name);
         });
     }
 
-    selectCharacter(member) {
-        console.log(`Selected character: ${member.name}`);
-        this.selectedCharacter = member;
-        this.showAttackOptions();
+    startCombat() {
+        // Combine party members and enemy into a single array for turn order
+        this.combatants = [...gameState.party, this.enemy];
+
+        // Sort combatants by speed in descending order
+        this.combatants.sort((a, b) => b.speed - a.speed);
+
+        // Start the turn loop
+        this.turnIndex = 0;
+        this.nextTurn();
     }
 
-    showAttackOptions() {
-        if (!this.selectedCharacter) {
-            console.log('No character selected');
-            return;
+    nextTurn() {
+        if (this.turnIndex >= this.combatants.length) {
+            // Reset turn index if we've gone through all combatants
+            this.turnIndex = 0;
         }
 
-        // Hide main menu buttons and texts
-        this.mainMenuButtons.forEach(pair => {
-            pair.button.setVisible(false);
-            pair.text.setVisible(false);
+        const combatant = this.combatants[this.turnIndex];
+
+        if (combatant.health > 0) {
+            this.takeAction(combatant);
+        } else {
+            this.turnIndex++;
+            this.nextTurn();
+        }
+    }
+
+    takeAction(combatant) {
+        if (combatant === this.enemy) {
+            this.enemyAction(combatant);
+        } else {
+            this.characterAction(combatant);
+        }
+    }
+
+    characterAction(character) {
+        const attack = Phaser.Utils.Array.GetRandom(character.attacks);
+        this.printResult(`${character.name} performs ${attack}`);
+        this.performAttack(character, attack, this.enemy);
+
+        this.time.delayedCall(1000, () => {
+            this.turnIndex++;
+            this.nextTurn();
         });
+    }
 
-        // Show cancel button
-        this.cancelButton.button.setVisible(true);
-        this.cancelButton.text.setVisible(true);
+    enemyAction(enemy) {
+        const attack = Phaser.Utils.Array.GetRandom(enemy.attacks);
+        const target = Phaser.Utils.Array.GetRandom(gameState.party);
+        this.printResult(`${enemy.name} performs ${attack} on ${target.name}`);
+        this.performAttack(enemy, attack, target);
 
-        // Create attack options based on the selected character
-        const width = this.cameras.main.width;
-        const boxY = this.cameras.main.height - this.cameras.main.height / 4;
-
-        this.selectedCharacter.attacks.forEach((attack, index) => {
-            const buttonX = ((index + 1) * width) / 5;
-            const pair = this.createButton(buttonX, boxY + 35, attack, () => this.performAttack(attack));
-            this.subOptionsGroup.add(pair.button);
-            this.subOptionsGroup.add(pair.text);
+        this.time.delayedCall(1000, () => {
+            this.turnIndex++;
+            this.nextTurn();
         });
-
-        this.subOptionsGroup.setVisible(true);
     }
 
-    showItemOptions() {
-        // Hide main menu buttons and texts
-        this.mainMenuButtons.forEach(pair => {
-            pair.button.setVisible(false);
-            pair.text.setVisible(false);
-        });
+    performAttack(attacker, attackType, target) {
+        const damage = Math.floor(Math.random() * 20) + 5; // Random damage between 5 and 25
+        target.health -= damage;
+        this.printResult(`${target.name} took ${damage} damage. Remaining health: ${target.health}`);
 
-        // Show cancel button
-        this.cancelButton.button.setVisible(true);
-        this.cancelButton.text.setVisible(true);
-
-        // Create item options based on the global inventory
-        const width = this.cameras.main.width;
-        const boxY = this.cameras.main.height - this.cameras.main.height / 4;
-
-        gameState.inventory.forEach((item, index) => {
-            const buttonX = ((index + 1) * width) / 5;
-            const pair = this.createButton(buttonX, boxY + 35, item, () => this.useItem(item));
-            this.subOptionsGroup.add(pair.button);
-            this.subOptionsGroup.add(pair.text);
-        });
-
-        this.subOptionsGroup.setVisible(true);
+        if (target.health <= 0) {
+            this.printResult(`${target.name} is defeated!`);
+            if (target === this.enemy) {
+                this.enemyImage.setVisible(false);
+            }
+        }
     }
 
-    showOption3() {
-        console.log("show option 3");
-    }
-
-    showOption4() {
-        console.log("show option 4");
-    }
-
-    createButton(x, y, text, callback) {
-        const buttonStyle = {
-            fill: '#ffffff',
-            font: '20px Arial',
-            align: 'center'
-        };
-
-        let button = this.add.rectangle(x, y, 80, 50, 0x000000, 0.8).setInteractive({ useHandCursor: true });
-        let buttonText = this.add.text(x, y, text, buttonStyle).setOrigin(0.5);
-
-        button.on('pointerover', () => { button.setFillStyle(0x555555, 0.8); });
-        button.on('pointerout', () => { button.setFillStyle(0x000000, 0.8); });
-        button.on('pointerdown', callback);
-
-        return { button, text: buttonText };
-    }
-
-    createCancelButton(x, y, text, callback) {
-        const buttonStyle = {
-            fill: '#ffffff',
-            font: '10px Arial',
-            align: 'center'
-        };
-
-        let button = this.add.rectangle(x, y, 40, 50, 0xff0000, 0.8).setInteractive({ useHandCursor: true });
-        let buttonText = this.add.text(x, y, text, buttonStyle).setOrigin(0.5);
-
-        button.on('pointerover', () => { button.setFillStyle(0xaa0000, 0.8); });
-        button.on('pointerout', () => { button.setFillStyle(0xff0000, 0.8); });
-        button.on('pointerdown', callback);
-
-        return { button, text: buttonText };
-    }
-
-    performAttack(attackType) {
-        console.log(`Performed attack: ${attackType}`);
-        // Show main menu after selecting an attack
-        this.showMainMenu();
-    }
-
-    useItem(itemName) {
-        console.log(`Used item: ${itemName}`);
-        // Show main menu after using an item
-        this.showMainMenu();
-    }
-
-    showMainMenu() {
-        // Hide sub-options
-        this.subOptionsGroup.clear(true, true);
-        this.subOptionsGroup.setVisible(false);
-
-        // Hide cancel button
-        this.cancelButton.button.setVisible(false);
-        this.cancelButton.text.setVisible(false);
-
-        // Show main menu buttons and texts
-        this.mainMenuButtons.forEach(pair => {
-            pair.button.setVisible(true);
-            pair.text.setVisible(true);
-        });
+    printResult(message) {
+        this.resultText.setText(message); // Set the new message, replacing the old one
     }
 }
